@@ -88,6 +88,16 @@ const commands = [
     .addStringOption(o => o.setName("icon").setRequired(true).setDescription("Emoji icon")),
 
   new SlashCommandBuilder()
+    .setName("remove")
+    .setDescription("Remove a brainrot")
+    .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
+    .addStringOption(o => o.setName("name").setRequired(true).setDescription("Name of the brainrot to remove")),
+
+  new SlashCommandBuilder()
+    .setName("totalvalues")
+    .setDescription("Show all brainrots in the database"),
+
+  new SlashCommandBuilder()
     .setName("settradechannel")
     .setDescription("Set trade log channel")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
@@ -298,6 +308,74 @@ client.on("interactionCreate", async i => {
       .setTimestamp();
 
     return i.reply({ embeds: [successEmbed] });
+  }
+
+  if (i.commandName === "remove") {
+    const name = i.options.getString("name").toLowerCase();
+    if (!data[name]) {
+      const errorEmbed = new EmbedBuilder()
+        .setTitle("❌ Brainrot Not Found")
+        .setDescription(`"${name}" is not in the database. Nothing to remove!`)
+        .setColor(0xe74c3c);
+      return i.reply({ embeds: [errorEmbed], ephemeral: true });
+    }
+
+    const removedBrainrot = data[name];
+    delete data[name];
+    saveData(data);
+
+    const successEmbed = new EmbedBuilder()
+      .setTitle("✅ Brainrot Removed")
+      .setColor(0x2ecc71)
+      .addFields(
+        { name: "Removed", value: `\`${name}\``, inline: true },
+        { name: "Icon", value: `${removedBrainrot.icon}`, inline: true }
+      )
+      .setDescription(`**${name}** has been successfully removed from the database.`)
+      .setTimestamp();
+
+    return i.reply({ embeds: [successEmbed] });
+  }
+
+  if (i.commandName === "totalvalues") {
+    const brainrots = Object.entries(data);
+    
+    if (brainrots.length === 0) {
+      const emptyEmbed = new EmbedBuilder()
+        .setTitle("📊 Brainrot Database")
+        .setDescription("The database is empty! Use `/setvalue` to add brainrots.")
+        .setColor(0x95a5a6);
+      return i.reply({ embeds: [emptyEmbed] });
+    }
+
+    let totalValue = 0;
+    const fields = [];
+
+    brainrots.forEach(([name, b]) => {
+      const d = demandData[b.demand];
+      const tradeValue = Math.round(b.value * d.mult);
+      totalValue += tradeValue;
+      
+      fields.push({
+        name: `${b.icon} ${name.toUpperCase()}`,
+        value: `Base: \`${b.value}\` | Demand: \`${b.demand.toUpperCase()}\` ${d.emoji} | Trade: \`${tradeValue}\``,
+        inline: false
+      });
+    });
+
+    const totalEmbed = new EmbedBuilder()
+      .setTitle("📊 All Brainrots")
+      .setColor(0x3498db)
+      .addFields(...fields)
+      .addFields(
+        { name: "━━━━━━━━━━━━━━━━", value: "━━━━━━━━━━━━━━━━", inline: false },
+        { name: "📈 Total Trade Value", value: `\`${totalValue}\``, inline: true },
+        { name: "🔢 Total Items", value: `\`${brainrots.length}\``, inline: true }
+      )
+      .setFooter({ text: "Total trade value = Sum of all trade values" })
+      .setTimestamp();
+
+    return i.reply({ embeds: [totalEmbed] });
   }
 
   if (i.commandName === "settradechannel") {
