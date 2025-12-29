@@ -100,13 +100,24 @@ const commands = [
     .addChannelOption(o => o.setName("channel").setRequired(true).setDescription("Channel for alerts"))
 ].map(c => c.toJSON());
 
-const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
-(async () => {
-  await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands });
-  console.log("Commands registered");
-})();
+/* ================= REGISTER COMMANDS ================= */
+
+async function registerCommands() {
+  try {
+    const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
+    await rest.put(Routes.applicationCommands(process.env.CLIENT_ID), { body: commands });
+    console.log("✅ Commands registered successfully");
+  } catch (error) {
+    console.error("❌ Error registering commands:", error);
+  }
+}
 
 /* ================= LOGIC ================= */
+
+client.on("ready", () => {
+  console.log(`✅ Bot logged in as ${client.user.tag}`);
+  registerCommands();
+});
 
 client.on("interactionCreate", async i => {
   if (!i.isChatInputCommand()) return;
