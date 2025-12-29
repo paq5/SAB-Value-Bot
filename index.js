@@ -95,7 +95,11 @@ const commands = [
 
   new SlashCommandBuilder()
     .setName("totalvalues")
-    .setDescription("Show all brainrots in the database"),
+    .setDescription("Show all brainrots with detailed values"),
+
+  new SlashCommandBuilder()
+    .setName("allbrainrots")
+    .setDescription("Show all brainrots currently on the server"),
 
   new SlashCommandBuilder()
     .setName("settradechannel")
@@ -376,6 +380,35 @@ client.on("interactionCreate", async i => {
       .setTimestamp();
 
     return i.reply({ embeds: [totalEmbed] });
+  }
+
+  if (i.commandName === "allbrainrots") {
+    const brainrots = Object.entries(data);
+    
+    if (brainrots.length === 0) {
+      const emptyEmbed = new EmbedBuilder()
+        .setTitle("📋 All Brainrots")
+        .setDescription("The database is empty! Use `/setvalue` to add brainrots.")
+        .setColor(0x95a5a6);
+      return i.reply({ embeds: [emptyEmbed] });
+    }
+
+    let brainrotList = "";
+    brainrots.forEach(([name, b]) => {
+      brainrotList += `${b.icon} **${name}** — Base: \`${b.value}\` | Demand: \`${b.demand.toUpperCase()}\`\n`;
+    });
+
+    const allBrainrotsEmbed = new EmbedBuilder()
+      .setTitle("📋 All Brainrots on Server")
+      .setDescription(brainrotList)
+      .setColor(0x9b59b6)
+      .addFields(
+        { name: "Total Brainrots", value: `\`${brainrots.length}\``, inline: true }
+      )
+      .setFooter({ text: "Use /value <name> to check individual values" })
+      .setTimestamp();
+
+    return i.reply({ embeds: [allBrainrotsEmbed] });
   }
 
   if (i.commandName === "settradechannel") {
