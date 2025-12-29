@@ -36,10 +36,10 @@ const getConfig = () => JSON.parse(fs.readFileSync(CONFIG_FILE));
 const saveConfig = c => fs.writeFileSync(CONFIG_FILE, JSON.stringify(c, null, 2));
 
 const demandData = {
-  low: { mult: 0.85, emoji: "🧊" },
-  medium: { mult: 1.0, emoji: "⚖️" },
-  high: { mult: 1.15, emoji: "🔥" },
-  insane: { mult: 1.3, emoji: "🚀" }
+  low: { mult: 0.85, emoji: "🧊", color: 0x3498db, bar: "▰▰▰░░░░░░" },
+  medium: { mult: 1.0, emoji: "⚖️", color: 0x95a5a6, bar: "▰▰▰▰▰░░░░" },
+  high: { mult: 1.15, emoji: "🔥", color: 0xe74c3c, bar: "▰▰▰▰▰▰▰░░" },
+  insane: { mult: 1.3, emoji: "🚀", color: 0x9b59b6, bar: "▰▰▰▰▰▰▰▰▰▰" }
 };
 
 /* ================= COMMANDS ================= */
@@ -126,32 +126,51 @@ client.on("interactionCreate", async i => {
   const config = getConfig();
 
   if (i.commandName === "rules") {
-    return i.reply({
-      embeds: [new EmbedBuilder()
-        .setTitle("📜 Trading Rules")
-        .setDescription("• Values can vary\n• Demand affects trades\n• Bot is a guide only")
-        .setColor(0x5865F2)]
-    });
+    const rulesEmbed = new EmbedBuilder()
+      .setTitle("📜 Trading Rules & Disclaimer")
+      .setDescription("Read these rules carefully before trading!")
+      .addFields(
+        { name: "⚠️ Rule 1: Values Can Vary", value: "Prices fluctuate based on market demand and rarity. Use this bot as a guide, not gospel.", inline: false },
+        { name: "📊 Rule 2: Demand Affects Trades", value: "High demand items are worth more. Low demand items are worth less. Always check the demand level!", inline: false },
+        { name: "🤖 Rule 3: Bot is a Guide Only", value: "This bot provides estimates. Final trade decisions are yours. Trade responsibly!", inline: false },
+        { name: "💡 Pro Tip", value: "Always verify both sides of a trade using `/tradecheck` before confirming!", inline: false }
+      )
+      .setColor(0x2c3e50)
+      .setFooter({ text: "Stay safe and trade smart! 🚀" })
+      .setTimestamp();
+
+    return i.reply({ embeds: [rulesEmbed] });
   }
 
   if (i.commandName === "value") {
     const name = i.options.getString("name").toLowerCase();
-    if (!data[name]) return i.reply({ content: "Unknown brainrot.", ephemeral: true });
+    if (!data[name]) {
+      const errorEmbed = new EmbedBuilder()
+        .setTitle("❌ Brainrot Not Found")
+        .setDescription(`"${name}" is not in the database. Check the spelling and try again!`)
+        .setColor(0xe74c3c)
+        .setFooter({ text: "Use /setvalue to add new brainrots" });
+      return i.reply({ embeds: [errorEmbed], ephemeral: true });
+    }
 
     const b = data[name];
     const d = demandData[b.demand];
     const final = Math.round(b.value * d.mult);
 
-    return i.reply({
-      embeds: [new EmbedBuilder()
-        .setTitle(`${b.icon} ${name}`)
-        .addFields(
-          { name: "Value", value: b.value.toString(), inline: true },
-          { name: "Demand", value: `${b.demand.toUpperCase()} ${d.emoji}`, inline: true },
-          { name: "Trade Value", value: final.toString(), inline: true }
-        )
-        .setColor(0x00ff99)]
-    });
+    const valueEmbed = new EmbedBuilder()
+      .setTitle(`${b.icon} ${name.toUpperCase()}`)
+      .setColor(d.color)
+      .addFields(
+        { name: "💰 Base Value", value: `\`${b.value}\``, inline: true },
+        { name: `${d.emoji} Demand Level`, value: `\`${b.demand.toUpperCase()}\``, inline: true },
+        { name: "📈 Multiplier", value: `\`${d.mult}x\``, inline: true },
+        { name: "🎯 Trade Value", value: `\`${final}\``, inline: false },
+        { name: "Demand Bar", value: d.bar, inline: false }
+      )
+      .setFooter({ text: "Trade value = Base value × Demand multiplier" })
+      .setTimestamp();
+
+    return i.reply({ embeds: [valueEmbed] });
   }
 
   if (i.commandName === "tradecheck") {
@@ -160,14 +179,14 @@ client.on("interactionCreate", async i => {
       let total = 0, lines = [];
       for (const it of items) {
         if (!data[it]) {
-          lines.push(`• ${it} — ❓`);
+          lines.push(`❓ \`${it}\` — Unknown`);
           continue;
         }
         const b = data[it];
         const d = demandData[b.demand];
         const v = Math.round(b.value * d.mult);
         total += v;
-        lines.push(`• ${b.icon} ${it} — ${b.value} | ${b.demand.toUpperCase()} ${d.emoji}`);
+        lines.push(`${b.icon} \`${it}\` — **${v}** (${b.value} × ${d.mult}x)`);
       }
       return { total, lines };
     };
@@ -175,24 +194,32 @@ client.on("interactionCreate", async i => {
     const your = calc(parse(i.options.getString("your_side")));
     const their = calc(parse(i.options.getString("their_side")));
 
-    let result = "FAIR", emoji = "⚖️";
-    if (your.total > their.total) { result = "WIN"; emoji = "✅"; }
-    if (your.total < their.total) { result = "LOSE"; emoji = "❌"; }
+    const difference = your.total - their.total;
+    let result = "FAIR", emoji = "⚖️", color = 0x95a5a6;
+    
+    if (difference > 0) { result = "WIN"; emoji = "✅"; color = 0x2ecc71; }
+    if (difference < 0) { result = "LOSE"; emoji = "❌"; color = 0xe74c3c; }
 
-    const embed = new EmbedBuilder()
-      .setTitle("🧠 Trade Analysis")
+    const tradeEmbed = new EmbedBuilder()
+      .setTitle(`${emoji} Trade Analysis`)
+      .setColor(color)
       .addFields(
-        { name: "Your Side", value: your.lines.join("\n") || "None", inline: true },
-        { name: "Their Side", value: their.lines.join("\n") || "None", inline: true },
-        { name: "Result", value: `${emoji} ${result} (${your.total - their.total})` }
+        { name: "👤 Your Side", value: your.lines.join("\n") || "None", inline: true },
+        { name: "🤝 Their Side", value: their.lines.join("\n") || "None", inline: true },
+        { name: "━━━━━━━━━━━━━━━━", value: "━━━━━━━━━━━━━━━━", inline: false },
+        { name: "Your Total", value: `\`${your.total}\``, inline: true },
+        { name: "Their Total", value: `\`${their.total}\``, inline: true },
+        { name: "Difference", value: `\`${Math.abs(difference)}\``, inline: true },
+        { name: "Result", value: `**${result}** — ${difference > 0 ? `You gain **${difference}** value` : difference < 0 ? `You lose **${Math.abs(difference)}** value` : "Both sides are equal"}`, inline: false }
       )
-      .setColor(0x5865F2);
+      .setFooter({ text: "Always verify before trading!" })
+      .setTimestamp();
 
-    await i.reply({ embeds: [embed] });
+    await i.reply({ embeds: [tradeEmbed] });
 
     if (config.tradeLogChannel) {
       const ch = await client.channels.fetch(config.tradeLogChannel).catch(() => null);
-      if (ch) ch.send({ embeds: [embed.setFooter({ text: i.user.tag }).setTimestamp()] });
+      if (ch) ch.send({ embeds: [tradeEmbed.setFooter({ text: `Trade checked by ${i.user.tag}` })] });
     }
   }
 
@@ -203,12 +230,25 @@ client.on("interactionCreate", async i => {
     data[name].value = value;
     saveData(data);
 
+    const successEmbed = new EmbedBuilder()
+      .setTitle("✅ Value Updated")
+      .setColor(0x2ecc71)
+      .addFields(
+        { name: "Brainrot", value: `\`${name}\``, inline: true },
+        { name: "New Value", value: `\`${value}\``, inline: true }
+      )
+      .setTimestamp();
+
     if (config.alertChannel) {
       const ch = await client.channels.fetch(config.alertChannel).catch(() => null);
-      if (ch) ch.send(`📈 **${name}** value set to **${value}**`);
+      if (ch) ch.send({ embeds: [new EmbedBuilder()
+        .setTitle("📈 Value Alert")
+        .setDescription(`**${name}** value has been updated to **${value}**`)
+        .setColor(0x3498db)
+        .setTimestamp()] });
     }
 
-    return i.reply("Value updated.");
+    return i.reply({ embeds: [successEmbed] });
   }
 
   if (i.commandName === "setdemand") {
@@ -218,12 +258,27 @@ client.on("interactionCreate", async i => {
     data[name].demand = demand;
     saveData(data);
 
+    const d = demandData[demand];
+    const successEmbed = new EmbedBuilder()
+      .setTitle("✅ Demand Updated")
+      .setColor(d.color)
+      .addFields(
+        { name: "Brainrot", value: `\`${name}\``, inline: true },
+        { name: `${d.emoji} New Demand`, value: `\`${demand.toUpperCase()}\``, inline: true },
+        { name: "Multiplier", value: `\`${d.mult}x\``, inline: true }
+      )
+      .setTimestamp();
+
     if (config.alertChannel) {
       const ch = await client.channels.fetch(config.alertChannel).catch(() => null);
-      if (ch) ch.send(`🔥 **${name}** demand is now **${demand.toUpperCase()}**`);
+      if (ch) ch.send({ embeds: [new EmbedBuilder()
+        .setTitle("🔥 Demand Alert")
+        .setDescription(`**${name}** demand is now **${demand.toUpperCase()}** ${d.emoji}`)
+        .setColor(d.color)
+        .setTimestamp()] });
     }
 
-    return i.reply("Demand updated.");
+    return i.reply({ embeds: [successEmbed] });
   }
 
   if (i.commandName === "seticon") {
@@ -232,19 +287,43 @@ client.on("interactionCreate", async i => {
     data[name] ??= { value: 0, demand: "medium" };
     data[name].icon = icon;
     saveData(data);
-    return i.reply("Icon updated.");
+
+    const successEmbed = new EmbedBuilder()
+      .setTitle("✅ Icon Updated")
+      .setColor(0x2ecc71)
+      .addFields(
+        { name: "Brainrot", value: `\`${name}\``, inline: true },
+        { name: "New Icon", value: `${icon}`, inline: true }
+      )
+      .setTimestamp();
+
+    return i.reply({ embeds: [successEmbed] });
   }
 
   if (i.commandName === "settradechannel") {
     config.tradeLogChannel = i.options.getChannel("channel").id;
     saveConfig(config);
-    return i.reply("Trade log channel set.");
+
+    const successEmbed = new EmbedBuilder()
+      .setTitle("✅ Trade Log Channel Set")
+      .setColor(0x2ecc71)
+      .setDescription(`Trade logs will now be sent to <#${config.tradeLogChannel}>`)
+      .setTimestamp();
+
+    return i.reply({ embeds: [successEmbed] });
   }
 
   if (i.commandName === "setalertchannel") {
     config.alertChannel = i.options.getChannel("channel").id;
     saveConfig(config);
-    return i.reply("Alert channel set.");
+
+    const successEmbed = new EmbedBuilder()
+      .setTitle("✅ Alert Channel Set")
+      .setColor(0x2ecc71)
+      .setDescription(`Value and demand alerts will now be sent to <#${config.alertChannel}>`)
+      .setTimestamp();
+
+    return i.reply({ embeds: [successEmbed] });
   }
 });
 
