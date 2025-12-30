@@ -155,8 +155,13 @@ function applyUpdates(autoData) {
 /* ===================== COMMANDS ===================== */
 
 const commands = [
-  new SlashCommandBuilder().setName("help").setDescription("Show all commands"),
-  new SlashCommandBuilder().setName("rules").setDescription("Trading rules"),
+  new SlashCommandBuilder()
+    .setName("help")
+    .setDescription("Show all commands"),
+
+  new SlashCommandBuilder()
+    .setName("rules")
+    .setDescription("Trading rules"),
 
   new SlashCommandBuilder()
     .setName("value")
@@ -179,17 +184,24 @@ const commands = [
     .setName("setvalue")
     .setDescription("Override value")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addStringOption(o => o.setName("name").setRequired(true))
-    .addIntegerOption(o => o.setName("value").setRequired(true)),
+    .addStringOption(o =>
+      o.setName("name").setDescription("Brainrot name").setRequired(true)
+    )
+    .addIntegerOption(o =>
+      o.setName("value").setDescription("New value").setRequired(true)
+    ),
 
   new SlashCommandBuilder()
     .setName("setdemand")
     .setDescription("Override demand")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addStringOption(o => o.setName("name").setRequired(true))
+    .addStringOption(o =>
+      o.setName("name").setDescription("Brainrot name").setRequired(true)
+    )
     .addStringOption(o =>
       o
         .setName("demand")
+        .setDescription("Demand level")
         .setRequired(true)
         .addChoices(
           { name: "Low", value: "low" },
@@ -203,19 +215,27 @@ const commands = [
     .setName("seticon")
     .setDescription("Override icon")
     .setDefaultMemberPermissions(PermissionFlagsBits.Administrator)
-    .addStringOption(o => o.setName("name").setRequired(true))
-    .addStringOption(o => o.setName("icon").setRequired(true))
+    .addStringOption(o =>
+      o.setName("name").setDescription("Brainrot name").setRequired(true)
+    )
+    .addStringOption(o =>
+      o.setName("icon").setDescription("Emoji icon").setRequired(true)
+    )
 ].map(c => c.toJSON());
 
 /* ===================== REGISTER ===================== */
 
 async function registerCommands() {
-  const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
-  await rest.put(
-    Routes.applicationCommands(process.env.CLIENT_ID),
-    { body: commands }
-  );
-  console.log("✅ Commands registered");
+  try {
+    const rest = new REST({ version: "10" }).setToken(process.env.TOKEN);
+    await rest.put(
+      Routes.applicationCommands(process.env.CLIENT_ID),
+      { body: commands }
+    );
+    console.log("✅ Commands registered");
+  } catch (err) {
+    console.error("❌ Command registration failed:", err.message);
+  }
 }
 
 /* ===================== EVENTS ===================== */
@@ -230,134 +250,139 @@ client.once("ready", () => {
 client.on("interactionCreate", async i => {
   if (!i.isChatInputCommand()) return;
 
-  const data = getData();
-  const overrides = getOverrides();
+  try {
+    const data = getData();
+    const overrides = getOverrides();
 
-  /* ===== HELP ===== */
-  if (i.commandName === "help") {
-    return i.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("🧠 Brainrot Values Bot")
-          .setDescription(
-            "**Public Commands**\n" +
-              "`/value` – Check a value\n" +
-              "`/tradecheck` – Trade fairness\n\n" +
-              "**Admin Commands**\n" +
-              "`/setvalue` – Override value\n" +
-              "`/setdemand` – Override demand\n" +
-              "`/seticon` – Override icon"
-          )
-          .setColor(0x2c3e50)
-      ]
-    });
-  }
-
-  /* ===== RULES ===== */
-  if (i.commandName === "rules") {
-    return i.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("📋 Trading Rules")
-          .setDescription(
-            "• Values are estimates\n" +
-              "• Demand is **visual only**\n" +
-              "• Admin overrides always win\n" +
-              "• Trade at your own risk"
-          )
-          .setColor(0xe74c3c)
-      ]
-    });
-  }
-
-  /* ===== VALUE ===== */
-  if (i.commandName === "value") {
-    const name = i.options.getString("name").toLowerCase();
-    const item = data[name];
-    if (!item) return i.reply("❌ Not found");
-
-    const d = demandInfo[item.demand] ?? demandInfo.medium;
-
-    return i.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle(`${item.icon} ${name.toUpperCase()}`)
-          .addFields(
-            { name: "Value", value: `\`${item.value}\``, inline: true },
-            {
-              name: `${d.emoji} Demand`,
-              value: item.demand.toUpperCase(),
-              inline: true
-            },
-            {
-              name: "Source",
-              value: item.source === "manual" ? "Manual" : "Website",
-              inline: true
-            }
-          )
-          .setColor(d.color)
-      ]
-    });
-  }
-
-  /* ===== TRADECHECK ===== */
-  if (i.commandName === "tradecheck") {
-    const your = i.options
-      .getString("your_side")
-      .split(",")
-      .map(s => s.trim().toLowerCase());
-    const their = i.options
-      .getString("their_side")
-      .split(",")
-      .map(s => s.trim().toLowerCase());
-
-    let yourTotal = 0;
-    let theirTotal = 0;
-
-    your.forEach(i => data[i] && (yourTotal += data[i].value));
-    their.forEach(i => data[i] && (theirTotal += data[i].value));
-
-    let result = "⚖️ Fair";
-    let color = 0x95a5a6;
-
-    if (yourTotal > theirTotal * 1.1) {
-      result = "🟢 You're Winning";
-      color = 0x2ecc71;
-    } else if (theirTotal > yourTotal * 1.1) {
-      result = "🔴 You're Losing";
-      color = 0xe74c3c;
+    /* ===== HELP ===== */
+    if (i.commandName === "help") {
+      return i.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("🧠 Brainrot Values Bot")
+            .setDescription(
+              "**Public Commands**\n" +
+                "`/value` – Check a value\n" +
+                "`/tradecheck` – Trade fairness\n\n" +
+                "**Admin Commands**\n" +
+                "`/setvalue` – Override value\n" +
+                "`/setdemand` – Override demand\n" +
+                "`/seticon` – Override icon"
+            )
+            .setColor(0x2c3e50)
+        ]
+      });
     }
 
-    return i.reply({
-      embeds: [
-        new EmbedBuilder()
-          .setTitle("⚖️ Trade Result")
-          .addFields(
-            { name: "Your Side", value: `${yourTotal}`, inline: true },
-            { name: "Their Side", value: `${theirTotal}`, inline: true },
-            { name: "Result", value: result }
-          )
-          .setColor(color)
-      ]
-    });
-  }
+    /* ===== RULES ===== */
+    if (i.commandName === "rules") {
+      return i.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("📋 Trading Rules")
+            .setDescription(
+              "• Values are estimates\n" +
+                "• Demand is **visual only**\n" +
+                "• Admin overrides always win\n" +
+                "• Trade at your own risk"
+            )
+            .setColor(0xe74c3c)
+        ]
+      });
+    }
 
-  /* ===== ADMIN ===== */
-  if (["setvalue", "setdemand", "seticon"].includes(i.commandName)) {
-    const name = i.options.getString("name").toLowerCase();
-    overrides[name] ??= {};
+    /* ===== VALUE ===== */
+    if (i.commandName === "value") {
+      const name = i.options.getString("name").toLowerCase();
+      const item = data[name];
+      if (!item) return i.reply("❌ Not found");
 
-    if (i.commandName === "setvalue")
-      overrides[name].value = i.options.getInteger("value");
+      const d = demandInfo[item.demand] ?? demandInfo.medium;
 
-    if (i.commandName === "setdemand")
-      overrides[name].demand = i.options.getString("demand");
+      return i.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle(`${item.icon} ${name.toUpperCase()}`)
+            .addFields(
+              { name: "Value", value: `\`${item.value}\``, inline: true },
+              {
+                name: `${d.emoji} Demand`,
+                value: item.demand.toUpperCase(),
+                inline: true
+              },
+              {
+                name: "Source",
+                value: item.source === "manual" ? "Manual" : "Website",
+                inline: true
+              }
+            )
+            .setColor(d.color)
+        ]
+      });
+    }
 
-    if (i.commandName === "seticon")
-      overrides[name].icon = i.options.getString("icon");
+    /* ===== TRADECHECK ===== */
+    if (i.commandName === "tradecheck") {
+      const your = i.options
+        .getString("your_side")
+        .split(",")
+        .map(s => s.trim().toLowerCase());
+      const their = i.options
+        .getString("their_side")
+        .split(",")
+        .map(s => s.trim().toLowerCase());
 
-    saveOverrides(overrides);
-    return i.reply("✅ Updated");
+      let yourTotal = 0;
+      let theirTotal = 0;
+
+      your.forEach(item => data[item] && (yourTotal += data[item].value));
+      their.forEach(item => data[item] && (theirTotal += data[item].value));
+
+      let result = "⚖️ Fair";
+      let color = 0x95a5a6;
+
+      if (yourTotal > theirTotal * 1.1) {
+        result = "🟢 You're Winning";
+        color = 0x2ecc71;
+      } else if (theirTotal > yourTotal * 1.1) {
+        result = "🔴 You're Losing";
+        color = 0xe74c3c;
+      }
+
+      return i.reply({
+        embeds: [
+          new EmbedBuilder()
+            .setTitle("⚖️ Trade Result")
+            .addFields(
+              { name: "Your Side", value: `${yourTotal}`, inline: true },
+              { name: "Their Side", value: `${theirTotal}`, inline: true },
+              { name: "Result", value: result }
+            )
+            .setColor(color)
+        ]
+      });
+    }
+
+    /* ===== ADMIN ===== */
+    if (["setvalue", "setdemand", "seticon"].includes(i.commandName)) {
+      const name = i.options.getString("name").toLowerCase();
+      overrides[name] ??= {};
+
+      if (i.commandName === "setvalue")
+        overrides[name].value = i.options.getInteger("value");
+
+      if (i.commandName === "setdemand")
+        overrides[name].demand = i.options.getString("demand");
+
+      if (i.commandName === "seticon")
+        overrides[name].icon = i.options.getString("icon");
+
+      saveOverrides(overrides);
+      return i.reply("✅ Updated");
+    }
+  } catch (err) {
+    console.error("Interaction error:", err);
+    i.reply({ content: "❌ An error occurred", ephemeral: true }).catch(() => {});
   }
 });
 
